@@ -1,11 +1,35 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+@import "tailwindcss";
+
+@theme {
+  --color-bg:            #07070f;
+  --color-surface:       #0f0e1a;
+  --color-surface-2:     #18172b;
+  --color-border:        #2a2847;
+  --color-primary:       #c084fc;
+  --color-primary-hover: #a855f7;
+  --color-income:        #2dd4bf;
+  --color-expense:       #f472b6;
+  --color-text:          #f8fafc;
+  --color-muted:         #6b7280;
+}
+
+@keyframes thinking-bounce {
+  0%, 80%, 100% { transform: translateY(0);    opacity: 0.4; }
+  40%           { transform: translateY(-5px); opacity: 1;   }
+}
+
+html, body, #root {
+  height: 100%;
 }
 
 body {
-  font-family: Arial, sans-serif;
-  background-color: #ffffff;
-  color: #333;
+  background-color: #07070f;
+  color: #f8fafc;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
+
+/* Custom scrollbar */
+.custom-scroll::-webkit-scrollbar       { width: 4px; }
+.custom-scroll::-webkit-scrollbar-track { background: transparent; }
+.custom-scroll::-webkit-scrollbar-thumb { background: #2a2847; border-radius: 4px; }
