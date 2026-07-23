@@ -30,9 +30,9 @@ function ExpenseCard({ expense }) {
       </div>
       <div className="py-1">
         {[
-          { label: 'Amount',   value: fmt(expense.amount),      cls: 'text-expense text-[15px]' },
-          { label: 'Merchant', value: expense.merchant,          cls: 'text-text' },
-          { label: 'Date',     value: fmtDate(expense.date),     cls: 'text-text' },
+          { label: 'Amount',   value: fmt(expense.amount),  cls: 'text-expense text-[15px]' },
+          { label: 'Merchant', value: expense.merchant,      cls: 'text-text' },
+          { label: 'Date',     value: fmtDate(expense.date), cls: 'text-text' },
         ].map(({ label, value, cls }, i, arr) => (
           <div
             key={label}
@@ -74,7 +74,25 @@ function ThinkingBubble() {
   );
 }
 
-export default function ChatMessage({ message }) {
+function RetryButton({ onRetry }) {
+  return (
+    <button
+      onClick={onRetry}
+      className="flex items-center gap-1.5 text-xs text-muted hover:text-text transition-colors mt-0.5 cursor-pointer"
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+        <path d="M3 3v5h5" />
+      </svg>
+      Try again
+    </button>
+  );
+}
+
+/**
+ * @param {{ message: object, onRetry?: (text: string) => void }} props
+ */
+export default function ChatMessage({ message, onRetry }) {
   if (message.thinking) return <ThinkingBubble />;
 
   if (message.role === 'user') {
@@ -90,7 +108,7 @@ export default function ChatMessage({ message }) {
   return (
     <div className="flex gap-2.5 items-start">
       <AIAvatar />
-      <div className="flex flex-col gap-2 max-w-[82%]">
+      <div className="flex flex-col gap-1.5 max-w-[82%]">
         <div
           className={`px-4 py-3 text-sm leading-relaxed shadow-sm rounded-[4px_16px_16px_16px]
             ${message.error
@@ -100,6 +118,11 @@ export default function ChatMessage({ message }) {
         >
           {message.text}
         </div>
+
+        {message.error && message.retryText && onRetry && (
+          <RetryButton onRetry={() => onRetry(message.retryText)} />
+        )}
+
         {message.expense && <ExpenseCard expense={message.expense} />}
       </div>
     </div>

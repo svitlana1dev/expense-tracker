@@ -53,7 +53,13 @@ export default function Dashboard() {
     } catch (err) {
       setMessages((prev) => [
         ...prev.filter((m) => m.id !== THINKING_ID),
-        { id: Date.now() + 1, role: 'ai', text: err.message ?? 'Something went wrong.', error: true },
+        {
+          id: Date.now() + 1,
+          role: 'ai',
+          text: err.message ?? 'Something went wrong.',
+          error: true,
+          retryText: text,
+        },
       ]);
     } finally {
       setLoading(false);
@@ -122,7 +128,7 @@ export default function Dashboard() {
 
       {/* Chat */}
       <main className="flex-1 overflow-y-auto scroll-smooth custom-scroll">
-        <ChatWindow messages={messages} />
+        <ChatWindow messages={messages} onRetry={handleSend} />
       </main>
 
       {/* Input */}

@@ -23,5 +23,12 @@ dist-ssr
 *.sln
 *.sw?
 
+# Environment — never commit real secrets
 .env
+.env.local
+.env.*.local
+
+# Vercel
+.vercel
+
 CLAUDE.md
