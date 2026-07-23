@@ -1,22 +1,23 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import tailwindcss from '@tailwindcss/vite';
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig(({ command }) => ({
   plugins: [react(), tailwindcss()],
-
   // Dev-only proxy — routes /api calls to the local Express server (server/).
   // Not needed (and ignored) when using `vercel dev`, which handles /api natively.
-  server: command === 'serve'
-    ? {
-        proxy: {
-          '/api': {
-            target: `http://localhost:${process.env.PORT ?? 3001}`,
-            changeOrigin: true,
-          },
+  server: {
+    port: 3000,
+
+    ...(command === "serve" && {
+      proxy: {
+        "/api": {
+          target: `http://localhost:${process.env.PORT ?? 3001}`,
+          changeOrigin: true,
         },
-      }
-    : undefined,
+      },
+    }),
+  },
 
   build: {
     // No source maps in production — reduces bundle size and avoids exposing logic.
@@ -26,7 +27,7 @@ export default defineConfig(({ command }) => ({
     rollupOptions: {
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom'],
+          vendor: ["react", "react-dom"],
         },
       },
     },
