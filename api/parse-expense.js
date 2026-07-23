@@ -2,101 +2,71 @@
  * Vercel Serverless Function — POST /api/parse-expense
  *
  * Converts a natural-language expense message into structured JSON using
- * OpenAI GPT-4o structured output. Runs entirely server-side so the
- * OPENAI_API_KEY is never exposed to the browser.
+ * Groq (free tier). Runs entirely server-side so GROQ_API_KEY is never
+ * exposed to the browser.
  *
+ * Free API key: https://console.groq.com
  * Runtime: Node.js (Vercel auto-selects latest LTS)
  * Timeout: 30 s (configured in vercel.json)
  */
 
-import OpenAI from 'openai';
+import Groq from 'groq-sdk';
 
-const MODEL = 'gpt-4o-2024-08-06';
+// llama-3.3-70b-versatile: best free model on Groq for structured extraction
+const MODEL = 'llama-3.3-70b-versatile';
 const MAX_RETRIES = 3;
 
-// JSON Schema for OpenAI structured output — enforces the exact shape we need.
-const RESPONSE_FORMAT = {
-  type: 'json_schema',
-  json_schema: {
-    name: 'expense',
-    strict: true,
-    schema: {
-      type: 'object',
-      properties: {
-        amount: {
-          type: 'number',
-          description: 'Positive expense amount with up to 2 decimal places',
-        },
-        category: {
-          type: 'string',
-          enum: ['Food', 'Transport', 'Shopping', 'Entertainment', 'Bills', 'Other'],
-        },
-        merchant: {
-          type: 'string',
-          description: 'Business or person paid; infer from context when not explicit',
-        },
-        date: {
-          type: 'string',
-          description: 'Expense date as YYYY-MM-DD',
-        },
-      },
-      required: ['amount', 'category', 'merchant', 'date'],
-      additionalProperties: false,
-    },
-  },
-};
+const CATEGORIES = ['Food', 'Transport', 'Shopping', 'Entertainment', 'Bills', 'Other'];
 
 function buildSystemPrompt() {
   const today = new Date().toISOString().split('T')[0];
-  return `You are an expense extraction assistant. Extract structured data from natural language.
+  return `You are an expense extraction assistant. Extract structured data from natural language and return ONLY valid JSON — no markdown, no explanation, no extra text.
 
 Today: ${today}
 
-Rules:
-- amount: positive number, no currency symbols
-- category: pick the closest from [Food, Transport, Shopping, Entertainment, Bills, Other]
-- merchant: the business or person paid — infer from keywords ("coffee" → "Coffee Shop")
-- date: YYYY-MM-DD; resolve relative dates ("yesterday", "2 days ago") using today above
-- If the message contains no identifiable amount, set amount to 0`;
+Return exactly this JSON shape:
+{
+  "amount": <positive number, no currency symbols>,
+  "category": <one of: ${CATEGORIES.join(', ')}>,
+  "merchant": <string — business or person paid; infer from context, e.g. "coffee" → "Coffee Shop">,
+  "date": <YYYY-MM-DD — resolve relative dates like "yesterday" or "2 days ago" using today above>
+}
+
+If the message contains no identifiable amount, set amount to 0.`;
 }
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Exponential back-off capped at 8 s
 function backoffMs(attempt) {
   return Math.min(1000 * 2 ** (attempt - 1), 8000);
 }
 
-// Lazily created so Vercel only validates the env var when the route is hit.
-function getOpenAIClient() {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error('OPENAI_API_KEY environment variable is not set');
+function getGroqClient() {
+  if (!process.env.GROQ_API_KEY) {
+    throw new Error('GROQ_API_KEY environment variable is not set');
   }
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return new Groq({ apiKey: process.env.GROQ_API_KEY });
 }
 
 export default async function handler(req, res) {
-  // ── Method guard ────────────────────────────────────────────────────────────
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  // ── Method guard ─────────────────────────────────────────────────────────────
+  if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed', code: 'METHOD_NOT_ALLOWED' });
   }
 
-  // ── Environment check ────────────────────────────────────────────────────────
-  if (!process.env.OPENAI_API_KEY) {
-    console.error('[parse-expense] OPENAI_API_KEY is not configured');
+  // ── Environment check ─────────────────────────────────────────────────────────
+  if (!process.env.GROQ_API_KEY) {
+    console.error('[parse-expense] GROQ_API_KEY is not configured');
     return res.status(503).json({
       error: 'Service is not configured. Contact the administrator.',
       code: 'SERVICE_UNAVAILABLE',
     });
   }
 
-  // ── Input validation ─────────────────────────────────────────────────────────
-  // Vercel auto-parses JSON bodies; handle both string and object forms.
+  // ── Input validation ──────────────────────────────────────────────────────────
   const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body ?? {});
   const { message } = body;
 
@@ -107,19 +77,19 @@ export default async function handler(req, res) {
     });
   }
 
-  // ── OpenAI call with retry ───────────────────────────────────────────────────
-  const openai = getOpenAIClient();
+  // ── Groq call with retry ──────────────────────────────────────────────────────
+  const groq = getGroqClient();
   let lastError;
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const completion = await openai.chat.completions.create({
+      const completion = await groq.chat.completions.create({
         model: MODEL,
         messages: [
           { role: 'system', content: buildSystemPrompt() },
           { role: 'user', content: message.trim() },
         ],
-        response_format: RESPONSE_FORMAT,
+        response_format: { type: 'json_object' },
         temperature: 0,
       });
 
@@ -133,7 +103,6 @@ export default async function handler(req, res) {
         throw new Error('Model returned malformed JSON');
       }
 
-      // Amount of 0 means the model could not find an amount in the input.
       if (typeof parsed.amount !== 'number' || parsed.amount <= 0) {
         return res.status(422).json({
           error: 'No valid amount found in your message. Try: "Spent $15 on coffee"',
@@ -141,12 +110,17 @@ export default async function handler(req, res) {
         });
       }
 
+      // Ensure category is one of the allowed values
+      if (!CATEGORIES.includes(parsed.category)) {
+        parsed.category = 'Other';
+      }
+
       return res.status(200).json(parsed);
     } catch (err) {
       lastError = err;
 
       const isRetryable =
-        err instanceof OpenAI.APIError && (err.status === 429 || err.status >= 500);
+        err instanceof Groq.APIError && (err.status === 429 || err.status >= 500);
 
       if (!isRetryable || attempt === MAX_RETRIES) break;
 
@@ -154,8 +128,8 @@ export default async function handler(req, res) {
     }
   }
 
-  // ── Map OpenAI errors to safe HTTP responses ─────────────────────────────────
-  if (lastError instanceof OpenAI.APIError) {
+  // ── Map Groq errors to safe HTTP responses ────────────────────────────────────
+  if (lastError instanceof Groq.APIError) {
     if (lastError.status === 429) {
       return res.status(429).json({
         error: 'Rate limit reached. Please wait a moment and try again.',
@@ -163,7 +137,7 @@ export default async function handler(req, res) {
       });
     }
     if (lastError.status === 401) {
-      console.error('[parse-expense] Invalid OpenAI API key');
+      console.error('[parse-expense] Invalid Groq API key');
       return res.status(503).json({
         error: 'Service configuration error.',
         code: 'AUTH_ERROR',

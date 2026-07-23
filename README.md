@@ -34,7 +34,7 @@ Mirrors production exactly. API functions run alongside the frontend.
 
 ```bash
 npm install -g vercel
-cp .env.example .env.local   # add OPENAI_API_KEY
+cp .env.example .env.local   # add GROQ_API_KEY
 npm install
 vercel dev                    # http://localhost:3000
 ```
@@ -42,7 +42,7 @@ vercel dev                    # http://localhost:3000
 ### Option B — Vite + Express separately
 
 ```bash
-cp .env.example .env.local   # add OPENAI_API_KEY
+cp .env.example .env.local   # add GROQ_API_KEY
 
 # Terminal 1 — Express API server
 cd server && npm install && npm run dev   # http://localhost:3001
@@ -55,7 +55,7 @@ npm install && npm run dev               # http://localhost:3000
 
 ```bash
 vercel                              # first deploy, follow prompts
-vercel env add OPENAI_API_KEY       # set secret in Vercel
+vercel env add GROQ_API_KEY       # set secret in Vercel
 vercel --prod                       # production deploy
 ```
 
@@ -65,10 +65,10 @@ Or connect the repo in the Vercel dashboard — it auto-detects Vite and deploys
 
 | Variable         | Required | Description                                            |
 | ---------------- | -------- | ------------------------------------------------------ |
-| `OPENAI_API_KEY` | Yes      | OpenAI API key — set in Vercel dashboard, never commit |
+| `GROQ_API_KEY` | Yes      | Free at console.groq.com — set in Vercel dashboard, never commit |
 | `PORT`           | No       | Local Express server port (default: `3001`)            |
 
-> **Never** use the `VITE_` prefix for `OPENAI_API_KEY`. That would embed it in the browser bundle.
+> **Never** use the `VITE_` prefix for `GROQ_API_KEY`. That would embed it in the browser bundle.
 
 ## Scripts
 

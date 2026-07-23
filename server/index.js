@@ -1,10 +1,17 @@
-import 'dotenv/config';
+import { config } from 'dotenv';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+// Load root .env first, then server/.env (server/.env takes precedence if both exist)
+config({ path: resolve(__dirname, '../.env') });
+config({ path: resolve(__dirname, '.env') });
 import express from 'express';
 import cors from 'cors';
 import { parseExpenseMessage, ParseError } from './parser.js';
 
-if (!process.env.OPENAI_API_KEY) {
-  console.error('Missing OPENAI_API_KEY in environment');
+if (!process.env.GROQ_API_KEY) {
+  console.error('Missing GROQ_API_KEY in environment');
   process.exit(1);
 }
 

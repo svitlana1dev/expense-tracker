@@ -1,53 +1,24 @@
-import OpenAI from 'openai';
+import Groq from 'groq-sdk';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-const MODEL = 'gpt-4o-2024-08-06';
+const MODEL = 'llama-3.3-70b-versatile';
 const MAX_RETRIES = 3;
-
-const RESPONSE_FORMAT = {
-  type: 'json_schema',
-  json_schema: {
-    name: 'expense',
-    strict: true,
-    schema: {
-      type: 'object',
-      properties: {
-        amount: {
-          type: 'number',
-          description: 'Positive expense amount with up to 2 decimal places',
-        },
-        category: {
-          type: 'string',
-          enum: ['Food', 'Transport', 'Shopping', 'Entertainment', 'Bills', 'Other'],
-        },
-        merchant: {
-          type: 'string',
-          description: 'Business or person paid; infer from context if not explicit',
-        },
-        date: {
-          type: 'string',
-          description: 'Expense date in YYYY-MM-DD format',
-        },
-      },
-      required: ['amount', 'category', 'merchant', 'date'],
-      additionalProperties: false,
-    },
-  },
-};
+const CATEGORIES = ['Food', 'Transport', 'Shopping', 'Entertainment', 'Bills', 'Other'];
 
 function buildSystemPrompt() {
   const today = new Date().toISOString().split('T')[0];
-  return `You are an expense extraction assistant. Extract structured data from natural language.
+  return `You are an expense extraction assistant. Extract structured data from natural language and return ONLY valid JSON — no markdown, no explanation, no extra text.
 
 Today: ${today}
 
-Rules:
-- amount: positive number (no currency symbols)
-- category: closest match from [Food, Transport, Shopping, Entertainment, Bills, Other]
-- merchant: business or person paid — infer from keywords ("coffee" → "Coffee Shop", "pizza" → "Pizzeria")
-- date: YYYY-MM-DD; resolve relative dates ("yesterday", "2 days ago") from today's date above
-- If the message contains no identifiable amount, set amount to 0`;
+Return exactly this JSON shape:
+{
+  "amount": <positive number, no currency symbols>,
+  "category": <one of: ${CATEGORIES.join(', ')}>,
+  "merchant": <string — business or person paid; infer from context, e.g. "coffee" → "Coffee Shop">,
+  "date": <YYYY-MM-DD — resolve relative dates like "yesterday" or "2 days ago" using today above>
+}
+
+If the message contains no identifiable amount, set amount to 0.`;
 }
 
 function sleep(ms) {
@@ -67,30 +38,41 @@ export class ParseError extends Error {
 }
 
 export async function parseExpenseMessage(message) {
+  if (!process.env.GROQ_API_KEY) {
+    throw new ParseError('GROQ_API_KEY is not set', 'SERVICE_UNAVAILABLE');
+  }
+
+  const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
   let lastError;
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const completion = await openai.chat.completions.create({
+      const completion = await groq.chat.completions.create({
         model: MODEL,
         messages: [
           { role: 'system', content: buildSystemPrompt() },
           { role: 'user', content: message },
         ],
-        response_format: RESPONSE_FORMAT,
+        response_format: { type: 'json_object' },
         temperature: 0,
       });
 
       const content = completion.choices[0]?.message?.content;
       if (!content) throw new ParseError('Empty response from model');
 
-      const parsed = JSON.parse(content);
+      let parsed;
+      try {
+        parsed = JSON.parse(content);
+      } catch {
+        throw new ParseError('Model returned malformed JSON');
+      }
 
       if (typeof parsed.amount !== 'number' || parsed.amount <= 0) {
-        throw new ParseError(
-          'No valid amount found in message',
-          'NO_AMOUNT'
-        );
+        throw new ParseError('No valid amount found in message', 'NO_AMOUNT');
+      }
+
+      if (!CATEGORIES.includes(parsed.category)) {
+        parsed.category = 'Other';
       }
 
       return parsed;
@@ -100,7 +82,7 @@ export async function parseExpenseMessage(message) {
       if (err instanceof ParseError) throw err;
 
       const isRetryable =
-        err instanceof OpenAI.APIError && (err.status === 429 || err.status >= 500);
+        err instanceof Groq.APIError && (err.status === 429 || err.status >= 500);
 
       if (!isRetryable || attempt === MAX_RETRIES) break;
 
@@ -108,7 +90,7 @@ export async function parseExpenseMessage(message) {
     }
   }
 
-  if (lastError instanceof OpenAI.APIError && lastError.status === 429) {
+  if (lastError instanceof Groq.APIError && lastError.status === 429) {
     throw new ParseError('Rate limit reached — try again shortly', 'RATE_LIMIT');
   }
 
