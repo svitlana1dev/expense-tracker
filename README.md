@@ -2,6 +2,8 @@
 
 Chat-based AI expense tracker. Type expenses in plain English — GPT-4o parses them into structured data and saves them to your dashboard.
 
+[View a live demo](https://expense-tracker-7ynk1uqmw-svitlana1devs-projects.vercel.app/) of the application
+
 ## How it works
 
 1. Type an expense: `"Spent $25 on Starbucks"`
@@ -63,10 +65,10 @@ Or connect the repo in the Vercel dashboard — it auto-detects Vite and deploys
 
 ## Environment Variables
 
-| Variable         | Required | Description                                            |
-| ---------------- | -------- | ------------------------------------------------------ |
+| Variable       | Required | Description                                                      |
+| -------------- | -------- | ---------------------------------------------------------------- |
 | `GROQ_API_KEY` | Yes      | Free at console.groq.com — set in Vercel dashboard, never commit |
-| `PORT`           | No       | Local Express server port (default: `3001`)            |
+| `PORT`         | No       | Local Express server port (default: `3001`)                      |
 
 > **Never** use the `VITE_` prefix for `GROQ_API_KEY`. That would embed it in the browser bundle.
 
